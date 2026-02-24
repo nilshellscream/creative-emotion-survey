@@ -21,7 +21,7 @@
         .bg-mf-blue { background-color: #002B45; }
         .bg-mf-gold { background-color: #D4AF37; }
         
-        /* Custom scrollbar */
+        /* Anpassad scrollbar */
         ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: #001F33; }
         ::-webkit-scrollbar-thumb { background: #002B45; border-radius: 10px; }
@@ -186,7 +186,6 @@
         // Data-loggning
         async function sendToGoogleSheet(data) {
             try {
-                // Skickar med 'no-cors' för att undvika CORS-problem vid enkla POSTs
                 fetch(SHEET_API_URL, {
                     method: 'POST',
                     mode: 'no-cors',
@@ -206,9 +205,6 @@
             const time = Math.floor(video.currentTime);
             rawLogs.push({ id: Date.now(), emotionId: id, time: time });
             sendToGoogleSheet({ type: 'emotion', label: label, time: time });
-            
-            // Visuell feedback på knapp
-            // (I denna enkla HTML-version hoppar vi över avancerad animation för enkelhetens skull)
         }
 
         function submitGuess() {
@@ -271,7 +267,6 @@
             rawLogs.forEach(log => {
                 if(log.time < duration) {
                     datasets[log.emotionId].data[log.time] += 1;
-                    // Smoothing
                     if(log.time + 1 < duration) datasets[log.emotionId].data[log.time + 1] += 0.5;
                 }
             });
@@ -296,9 +291,7 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false }
-                    },
+                    plugins: { legend: { display: false } },
                     scales: {
                         y: { display: false },
                         x: { 
@@ -315,7 +308,7 @@
             if (allGuesses.length === 0) return;
             
             list.innerHTML = allGuesses.map(g => `
-                <div class="p-5 rounded-2xl bg-black/20 border border-white/5">
+                <div class="p-5 rounded-2xl bg-black/20 border border-white/5 animate-fadeIn">
                     <p class="text-lg font-black">${g.text}</p>
                     <p class="text-[10px] font-bold text-white/30 uppercase">Timestamp: ${g.time}s</p>
                 </div>
@@ -331,7 +324,6 @@
                 document.getElementById('fileNameDisplay').innerText = file.name;
                 rawLogs = [];
                 allGuesses = [];
-                // Reset guess UI
                 document.getElementById('guessContainer').innerHTML = `
                     <div class="space-y-3">
                         <input type="text" id="advertiserInput" placeholder="Skriv varumärke..." class="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-4 text-sm text-white focus:outline-none focus:border-[#D4AF37] transition-all">
