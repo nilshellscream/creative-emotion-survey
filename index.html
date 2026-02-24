@@ -1,264 +1,345 @@
-import React, { useState, useRef, useMemo, useEffect } from 'react';
-import { 
-  AreaChart, 
-  Area, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer,
-  ReferenceLine
-} from 'recharts';
-import { Play, Info, MessageSquare, CheckCircle, Upload, Activity } from 'lucide-react';
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MediaFamily AdInsights</title>
+    <!-- Tailwind CSS för styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Chart.js för grafer -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #001F33;
+            color: white;
+        }
+        .mf-gold { color: #D4AF37; }
+        .bg-mf-blue { background-color: #002B45; }
+        .bg-mf-gold { background-color: #D4AF37; }
+        
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #001F33; }
+        ::-webkit-scrollbar-thumb { background: #002B45; border-radius: 10px; }
 
-/**
- * MEDIAFAMILY ADINSIGHTS - GITHUB READY
- * ------------------------------------
- * Installation:
- * 1. npm install lucide-react recharts
- * 2. Se till att Tailwind CSS är konfigurerat i projektet.
- */
+        .animate-fadeIn {
+            animation: fadeIn 0.5s ease-out forwards;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .emotion-btn:active { transform: scale(0.95); }
+    </style>
+</head>
+<body class="min-h-screen">
 
-const COLORS = {
-  primary: '#002B45', 
-  accent: '#D4AF37',  
-  bg: '#001F33',      
-  happy: '#D4AF37',   
-  surprise: '#F39C12',
-  sad: '#3498DB',
-  angry: '#E74C3C'
-};
-
-const EMOTIONS = [
-  { id: 'happy', label: 'Glädje', emoji: '😊', color: COLORS.happy },
-  { id: 'surprise', label: 'Förvåning', emoji: '😲', color: COLORS.surprise },
-  { id: 'sad', label: 'Sorg', emoji: '😢', color: COLORS.sad },
-  { id: 'angry', label: 'Ilska', emoji: '😡', color: COLORS.angry },
-];
-
-const SHEET_API_URL = "https://script.google.com/macros/s/AKfycbxeRhCnooEPxtX1xA63Dzp0zsfJxhC5CHXQizh7ri8hmUgqj3FWP-AcB3OthWENZj-dYQ/exec";
-
-const App = () => {
-  const [view, setView] = useState('participant');
-  const [rawLogs, setRawLogs] = useState([]);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [activeClick, setActiveClick] = useState(null);
-  const [advertiserGuess, setAdvertiserGuess] = useState("");
-  const [hasGuessed, setHasGuessed] = useState(false);
-  const [allGuesses, setAllGuesses] = useState([]);
-  const [videoUrl, setVideoUrl] = useState("https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4");
-  const [sessionId] = useState(() => Math.random().toString(36).substring(7));
-  
-  const videoRef = useRef(null);
-  const fileInputRef = useRef(null);
-
-  const sendToGoogleSheet = async (data) => {
-    try {
-      await fetch(SHEET_API_URL, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          ...data, 
-          sessionId,
-          videoTimestamp: data.time,
-          videoId: videoUrl.split('/').pop()
-        })
-      });
-    } catch (e) { console.warn("Loggning pausad"); }
-  };
-
-  const handleEmotionClick = (emotion) => {
-    if (!videoRef.current) return;
-    setActiveClick(emotion.id);
-    setTimeout(() => setActiveClick(null), 250);
-
-    const videoTime = Math.floor(videoRef.current.currentTime);
-    setRawLogs(prev => [...prev, { id: Date.now(), emotionId: emotion.id, time: videoTime }]);
-    sendToGoogleSheet({ type: 'emotion', label: emotion.label, time: videoTime });
-  };
-
-  const handleGuessSubmit = () => {
-    if (advertiserGuess.trim() && videoRef.current) {
-      const videoTime = Math.floor(videoRef.current.currentTime);
-      setAllGuesses(prev => [...prev, { id: Date.now(), time: videoTime, text: advertiserGuess.trim() }]);
-      setHasGuessed(true);
-      sendToGoogleSheet({ type: 'guess', text: advertiserGuess.trim(), time: videoTime });
-    }
-  };
-
-  const chartData = useMemo(() => {
-    const timelineLength = Math.ceil(duration || 60);
-    const data = Array.from({ length: timelineLength + 1 }, (_, i) => ({ 
-      time: i, happy: 0, surprise: 0, sad: 0, angry: 0 
-    }));
-    rawLogs.forEach(log => {
-      [1.0, 0.7, 0.3].forEach((v, i) => {
-        if (log.time + i <= timelineLength) data[log.time + i][log.emotionId] += v;
-      });
-    });
-    return data;
-  }, [rawLogs, duration]);
-
-  return (
-    <div className="min-h-screen text-white font-sans" style={{ backgroundColor: COLORS.bg }}>
-      <header className="border-b border-white/10 sticky top-0 z-50 bg-[#002B45] shadow-xl">
-        <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="h-10 w-10 rounded-xl bg-yellow-600 flex items-center justify-center font-black text-xl shadow-lg">MF</div>
-            <div className="hidden sm:block">
-              <h1 className="font-black text-lg uppercase leading-none">AdInsights</h1>
-              <p className="text-[10px] text-yellow-500 font-bold uppercase tracking-widest">MediaFamily Analysis</p>
-            </div>
-          </div>
-          <nav className="flex bg-black/30 p-1 rounded-xl border border-white/5">
-            <button 
-              onClick={() => setView('participant')} 
-              className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-tighter transition-all ${view === 'participant' ? 'bg-yellow-600 text-white shadow-lg' : 'text-white/40 hover:text-white'}`}
-            >
-              Deltagarvy
-            </button>
-            <button 
-              onClick={() => setView('researcher')} 
-              className={`px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-tighter transition-all ${view === 'researcher' ? 'bg-yellow-600 text-white shadow-lg' : 'text-white/40 hover:text-white'}`}
-            >
-              Dashboard
-            </button>
-          </nav>
-        </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto p-6">
-        {view === 'participant' ? (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-            <div className="lg:col-span-8 space-y-6">
-              <div className="relative aspect-video bg-black rounded-3xl overflow-hidden shadow-2xl border border-white/10">
-                <video 
-                  ref={videoRef}
-                  className="w-full h-full object-contain"
-                  src={videoUrl}
-                  onTimeUpdate={() => setCurrentTime(videoRef.current.currentTime)}
-                  onLoadedMetadata={() => setDuration(videoRef.current.duration)}
-                  onEnded={() => setIsPlaying(false)}
-                />
-                {!isPlaying && (
-                  <div className="absolute inset-0 bg-black/70 backdrop-blur-sm flex flex-col items-center justify-center">
-                    <button onClick={() => { videoRef.current.play(); setIsPlaying(true); }} className="w-20 h-20 rounded-full bg-yellow-600 flex items-center justify-center hover:scale-105 transition-transform shadow-2xl">
-                      <Play size={32} fill="white" className="ml-1" />
-                    </button>
-                    <p className="mt-4 text-[10px] font-black uppercase tracking-[0.3em] text-yellow-500">Starta Video</p>
-                  </div>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-6 rounded-3xl bg-[#002B45]/40 border border-white/5">
-                {EMOTIONS.map((em) => (
-                  <button
-                    key={em.id}
-                    onClick={() => handleEmotionClick(em)}
-                    className="flex flex-col items-center justify-center p-6 border-2 rounded-2xl transition-all active:scale-95"
-                    style={{ 
-                      borderColor: activeClick === em.id ? COLORS.accent : 'transparent', 
-                      backgroundColor: activeClick === em.id ? 'rgba(212, 175, 55, 0.1)' : 'rgba(255,255,255,0.03)'
-                    }}
-                  >
-                    <span className="text-4xl mb-2">{em.emoji}</span>
-                    <span className="text-[10px] font-black uppercase text-white/60">{em.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="lg:col-span-4 space-y-6">
-              <div className="p-8 rounded-3xl bg-gradient-to-b from-[#002B45] to-[#001F33] border border-white/10 shadow-xl">
-                <h3 className="text-[10px] font-black uppercase tracking-widest text-yellow-500 mb-4 flex items-center gap-2">
-                  <MessageSquare size={16} /> Vem är avsändaren?
-                </h3>
-                {!hasGuessed ? (
-                  <div className="space-y-3">
-                    <input
-                      type="text"
-                      placeholder="Skriv varumärke..."
-                      className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-4 text-sm focus:outline-none focus:border-yellow-600 transition-all"
-                      value={advertiserGuess}
-                      onChange={(e) => setAdvertiserGuess(e.target.value)}
-                    />
-                    <button onClick={handleGuessSubmit} className="w-full py-4 rounded-xl font-black uppercase text-[10px] tracking-widest bg-yellow-600 hover:bg-yellow-700 transition-all">Skicka Svar</button>
-                  </div>
-                ) : (
-                  <div className="p-6 rounded-2xl bg-yellow-600/10 border border-yellow-600/30 text-center">
-                    <CheckCircle size={32} className="mx-auto text-yellow-500 mb-2" />
-                    <p className="text-[10px] font-black uppercase text-white/60 mb-1">Loggat svar:</p>
-                    <p className="text-xl font-black text-white">{advertiserGuess}</p>
-                  </div>
-                )}
-              </div>
-              <div className="p-6 rounded-3xl bg-black/20 border border-white/5">
-                <h4 className="text-[10px] font-black uppercase tracking-widest text-white/30 mb-2">Instruktioner</h4>
-                <p className="text-[11px] text-white/50 leading-relaxed">Se videon och klicka på de känslor du upplever i stunden. Dina reaktioner sparas i realtid.</p>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-8 animate-fadeIn">
-            <div className="grid md:grid-cols-3 gap-6">
-              <div className="md:col-span-1 aspect-video bg-black rounded-2xl overflow-hidden border border-white/10 shadow-xl">
-                <video ref={videoRef} className="w-full h-full object-contain" src={videoUrl} controls />
-              </div>
-              <div className="md:col-span-2 flex items-center p-8 bg-[#002B45] rounded-3xl border border-white/10 shadow-xl">
-                <div className="flex-1">
-                  <h4 className="text-[10px] font-black uppercase text-yellow-500 mb-1">Aktiv Fil</h4>
-                  <p className="text-sm font-bold truncate">{videoUrl.split('/').pop()}</p>
+    <!-- Header -->
+    <header class="border-b border-white/10 sticky top-0 z-50 bg-[#002B45] shadow-xl">
+        <div class="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <div class="h-10 w-10 rounded-xl bg-[#D4AF37] flex items-center justify-center font-black text-xl text-[#001F33] shadow-lg">MF</div>
+                <div class="hidden sm:block">
+                    <h1 class="font-black text-lg uppercase leading-none">AdInsights</h1>
+                    <p class="text-[10px] text-[#D4AF37] font-bold uppercase tracking-widest">MediaFamily Analysis</p>
                 </div>
-                <button onClick={() => fileInputRef.current.click()} className="px-6 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">Byt Video</button>
-                <input type="file" ref={fileInputRef} onChange={(e) => {
-                  const file = e.target.files[0];
-                  if(file) { setVideoUrl(URL.createObjectURL(file)); setRawLogs([]); setAllGuesses([]); setHasGuessed(false); }
-                }} className="hidden" accept="video/*" />
-              </div>
+            </div>
+            <nav class="flex bg-black/30 p-1 rounded-xl border border-white/5">
+                <button onclick="switchView('participant')" id="nav-participant" class="px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-tighter transition-all bg-[#D4AF37] text-white shadow-lg">
+                    Deltagarvy
+                </button>
+                <button onclick="switchView('researcher')" id="nav-researcher" class="px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-tighter transition-all text-white/40 hover:text-white">
+                    Dashboard
+                </button>
+            </nav>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto p-6">
+        <!-- DELTAGARVY -->
+        <div id="view-participant" class="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-fadeIn">
+            <div class="lg:col-span-8 space-y-6">
+                <!-- Videospelare -->
+                <div class="relative aspect-video bg-black rounded-3xl overflow-hidden shadow-2xl border border-white/10 group">
+                    <video id="mainVideo" class="w-full h-full object-contain" src="https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"></video>
+                    <div id="videoOverlay" class="absolute inset-0 bg-black/70 backdrop-blur-sm flex flex-col items-center justify-center cursor-pointer" onclick="togglePlay()">
+                        <div class="w-20 h-20 rounded-full bg-[#D4AF37] flex items-center justify-center hover:scale-105 transition-transform shadow-2xl">
+                            <i data-lucide="play" fill="white" class="ml-1 text-white"></i>
+                        </div>
+                        <p class="mt-4 text-[10px] font-black uppercase tracking-[0.3em] text-[#D4AF37]">Starta Video</p>
+                    </div>
+                </div>
+
+                <!-- Reaktionsknappar -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 p-6 rounded-3xl bg-[#002B45]/40 border border-white/5">
+                    <button onclick="logEmotion('happy', 'Glädje')" class="emotion-btn flex flex-col items-center justify-center p-6 border-2 border-transparent rounded-2xl bg-white/5 hover:bg-white/10 transition-all">
+                        <span class="text-4xl mb-2">😊</span>
+                        <span class="text-[10px] font-black uppercase text-white/60">Glädje</span>
+                    </button>
+                    <button onclick="logEmotion('surprise', 'Förvåning')" class="emotion-btn flex flex-col items-center justify-center p-6 border-2 border-transparent rounded-2xl bg-white/5 hover:bg-white/10 transition-all">
+                        <span class="text-4xl mb-2">😲</span>
+                        <span class="text-[10px] font-black uppercase text-white/60">Förvåning</span>
+                    </button>
+                    <button onclick="logEmotion('sad', 'Sorg')" class="emotion-btn flex flex-col items-center justify-center p-6 border-2 border-transparent rounded-2xl bg-white/5 hover:bg-white/10 transition-all">
+                        <span class="text-4xl mb-2">😢</span>
+                        <span class="text-[10px] font-black uppercase text-white/60">Sorg</span>
+                    </button>
+                    <button onclick="logEmotion('angry', 'Ilska')" class="emotion-btn flex flex-col items-center justify-center p-6 border-2 border-transparent rounded-2xl bg-white/5 hover:bg-white/10 transition-all">
+                        <span class="text-4xl mb-2">😡</span>
+                        <span class="text-[10px] font-black uppercase text-white/60">Ilska</span>
+                    </button>
+                </div>
             </div>
 
-            <div className="p-8 rounded-[2.5rem] bg-[#002B45] border border-white/10 shadow-2xl">
-              <h3 className="text-[10px] font-black uppercase tracking-widest text-yellow-500 mb-8 flex items-center gap-2">
-                <Activity size={18} /> Emotionell Respons (Aggregerad)
-              </h3>
-              <div className="h-[350px] w-full">
-                <ResponsiveContainer>
-                  <AreaChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" vertical={false} />
-                    <XAxis dataKey="time" stroke="rgba(255,255,255,0.1)" fontSize={10} tickFormatter={(v) => `${v}s`} />
-                    <YAxis hide />
-                    <Tooltip contentStyle={{ backgroundColor: '#001F33', border: 'none', borderRadius: '12px', fontSize: '10px' }} />
-                    {EMOTIONS.map(em => (
-                      <Area key={em.id} type="monotone" dataKey={em.id} stroke={em.color} fill={em.color} fillOpacity={0.2} stackId="1" strokeWidth={3} />
-                    ))}
-                    <ReferenceLine x={Math.floor(currentTime)} stroke={COLORS.accent} strokeWidth={2} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
+            <!-- Högerpanel -->
+            <div class="lg:col-span-4 space-y-6">
+                <div class="p-8 rounded-3xl bg-gradient-to-b from-[#002B45] to-[#001F33] border border-white/10 shadow-xl">
+                    <h3 class="text-[10px] font-black uppercase tracking-widest text-[#D4AF37] mb-4 flex items-center gap-2">
+                        <i data-lucide="message-square" size="16"></i> Vem är avsändaren?
+                    </h3>
+                    <div id="guessContainer">
+                        <div class="space-y-3">
+                            <input type="text" id="advertiserInput" placeholder="Skriv varumärke..." class="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-4 text-sm text-white focus:outline-none focus:border-[#D4AF37] transition-all">
+                            <button onclick="submitGuess()" class="w-full py-4 rounded-xl font-black uppercase text-[10px] tracking-widest bg-[#D4AF37] hover:bg-[#b8962d] transition-all text-[#001F33]">Skicka Svar</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="p-6 rounded-3xl bg-black/20 border border-white/5">
+                    <h4 class="text-[10px] font-black uppercase tracking-widest text-white/30 mb-2">Instruktioner</h4>
+                    <p class="text-[11px] text-white/50 leading-relaxed">Se videon och klicka på de känslor du upplever i stunden. Dina reaktioner sparas i realtid.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- DASHBOARD (Dold initialt) -->
+        <div id="view-researcher" class="hidden space-y-8 animate-fadeIn">
+            <div class="grid md:grid-cols-3 gap-6">
+                <div class="md:col-span-1 aspect-video bg-black rounded-2xl overflow-hidden border border-white/10 shadow-xl">
+                    <video id="previewVideo" class="w-full h-full object-contain" src="https://storage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4" controls></video>
+                </div>
+                <div class="md:col-span-2 flex items-center p-8 bg-[#002B45] rounded-3xl border border-white/10 shadow-xl">
+                    <div class="flex-1">
+                        <h4 class="text-[10px] font-black uppercase text-[#D4AF37] mb-1">Aktiv Fil</h4>
+                        <p id="fileNameDisplay" class="text-sm font-bold truncate">BigBuckBunny.mp4</p>
+                    </div>
+                    <button onclick="document.getElementById('fileInput').click()" class="px-6 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all">Byt Video</button>
+                    <input type="file" id="fileInput" class="hidden" accept="video/*" onchange="handleFileUpload(event)">
+                </div>
             </div>
 
-            <div className="p-8 rounded-[2.5rem] bg-[#002B45]/50 border border-white/10">
-              <h3 className="text-[10px] font-black uppercase tracking-widest text-yellow-500 mb-6 flex items-center gap-2">
-                <MessageSquare size={18} /> Registrerade Gissningar
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {allGuesses.map(g => (
-                  <div key={g.id} className="p-5 rounded-2xl bg-black/20 border border-white/5">
-                    <p className="text-lg font-black">{g.text}</p>
-                    <p className="text-[10px] font-bold text-white/30 uppercase">Timestamp: {g.time}s</p>
-                  </div>
-                ))}
-                {allGuesses.length === 0 && <p className="col-span-full py-10 text-center text-[10px] uppercase font-black text-white/10 tracking-[0.3em] border-2 border-dashed border-white/5 rounded-2xl">Ingen data ännu</p>}
-              </div>
+            <div class="p-8 rounded-[2.5rem] bg-[#002B45] border border-white/10 shadow-2xl">
+                <h3 class="text-[10px] font-black uppercase tracking-widest text-[#D4AF37] mb-8 flex items-center gap-2">
+                    <i data-lucide="activity" size="18"></i> Emotionell Respons (Aggregerad)
+                </h3>
+                <div class="h-[350px] w-full">
+                    <canvas id="emotionChart"></canvas>
+                </div>
             </div>
-          </div>
-        )}
-      </main>
-    </div>
-  );
-};
 
-export default App;
+            <div class="p-8 rounded-[2.5rem] bg-[#002B45]/50 border border-white/10">
+                <h3 class="text-[10px] font-black uppercase tracking-widest text-[#D4AF37] mb-6 flex items-center gap-2">
+                    <i data-lucide="message-square" size="18"></i> Registrerade Gissningar
+                </h3>
+                <div id="guessLogList" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <!-- Gissningar renderas här -->
+                    <p class="col-span-full py-10 text-center text-[10px] uppercase font-black text-white/10 tracking-[0.3em] border-2 border-dashed border-white/5 rounded-2xl">Ingen data ännu</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Initiera Lucide Ikoner
+        lucide.createIcons();
+
+        // State
+        let currentView = 'participant';
+        let rawLogs = [];
+        let allGuesses = [];
+        let sessionId = Math.random().toString(36).substring(7);
+        const SHEET_API_URL = "https://script.google.com/macros/s/AKfycbxeRhCnooEPxtX1xA63Dzp0zsfJxhC5CHXQizh7ri8hmUgqj3FWP-AcB3OthWENZj-dYQ/exec";
+        
+        const video = document.getElementById('mainVideo');
+        const overlay = document.getElementById('videoOverlay');
+        let chart = null;
+
+        // Video-hantering
+        function togglePlay() {
+            if (video.paused) {
+                video.play();
+                overlay.style.display = 'none';
+            } else {
+                video.pause();
+                overlay.style.display = 'flex';
+            }
+        }
+
+        video.onended = () => {
+            overlay.style.display = 'flex';
+        };
+
+        // Data-loggning
+        async function sendToGoogleSheet(data) {
+            try {
+                // Skickar med 'no-cors' för att undvika CORS-problem vid enkla POSTs
+                fetch(SHEET_API_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        ...data, 
+                        sessionId,
+                        videoTimestamp: data.time,
+                        videoId: video.src.split('/').pop()
+                    })
+                });
+            } catch (e) { console.warn("Loggning pausad"); }
+        }
+
+        function logEmotion(id, label) {
+            if (video.paused && video.currentTime === 0) return;
+            const time = Math.floor(video.currentTime);
+            rawLogs.push({ id: Date.now(), emotionId: id, time: time });
+            sendToGoogleSheet({ type: 'emotion', label: label, time: time });
+            
+            // Visuell feedback på knapp
+            // (I denna enkla HTML-version hoppar vi över avancerad animation för enkelhetens skull)
+        }
+
+        function submitGuess() {
+            const input = document.getElementById('advertiserInput');
+            const val = input.value.trim();
+            if (val) {
+                const time = Math.floor(video.currentTime);
+                allGuesses.push({ id: Date.now(), time: time, text: val });
+                sendToGoogleSheet({ type: 'guess', text: val, time: time });
+                
+                document.getElementById('guessContainer').innerHTML = `
+                    <div class="p-6 rounded-2xl bg-[#D4AF37]/10 border border-[#D4AF37]/30 text-center animate-fadeIn">
+                        <i data-lucide="check-circle" size="32" class="mx-auto text-[#D4AF37] mb-2"></i>
+                        <p class="text-[10px] font-black uppercase text-white/60 mb-1">Loggat svar:</p>
+                        <p class="text-xl font-black text-white">${val}</p>
+                    </div>
+                `;
+                lucide.createIcons();
+                updateGuessList();
+            }
+        }
+
+        // Vy-hantering
+        function switchView(view) {
+            currentView = view;
+            const pView = document.getElementById('view-participant');
+            const rView = document.getElementById('view-researcher');
+            const navP = document.getElementById('nav-participant');
+            const navR = document.getElementById('nav-researcher');
+
+            if (view === 'participant') {
+                pView.classList.remove('hidden');
+                rView.classList.add('hidden');
+                navP.className = "px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-tighter transition-all bg-[#D4AF37] text-white shadow-lg";
+                navR.className = "px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-tighter transition-all text-white/40 hover:text-white";
+                video.pause();
+            } else {
+                pView.classList.add('hidden');
+                rView.classList.remove('hidden');
+                navR.className = "px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-tighter transition-all bg-[#D4AF37] text-white shadow-lg";
+                navP.className = "px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-tighter transition-all text-white/40 hover:text-white";
+                initChart();
+                updateGuessList();
+            }
+        }
+
+        // Chart.js Logik
+        function initChart() {
+            const ctx = document.getElementById('emotionChart').getContext('2d');
+            const duration = Math.ceil(video.duration || 60);
+            const labels = Array.from({length: duration}, (_, i) => i + "s");
+            
+            const datasets = {
+                happy: { label: 'Glädje', data: new Array(duration).fill(0), color: '#D4AF37' },
+                surprise: { label: 'Förvåning', data: new Array(duration).fill(0), color: '#F39C12' },
+                sad: { label: 'Sorg', data: new Array(duration).fill(0), color: '#3498DB' },
+                angry: { label: 'Ilska', data: new Array(duration).fill(0), color: '#E74C3C' }
+            };
+
+            rawLogs.forEach(log => {
+                if(log.time < duration) {
+                    datasets[log.emotionId].data[log.time] += 1;
+                    // Smoothing
+                    if(log.time + 1 < duration) datasets[log.emotionId].data[log.time + 1] += 0.5;
+                }
+            });
+
+            if (chart) chart.destroy();
+
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: Object.values(datasets).map(ds => ({
+                        label: ds.label,
+                        data: ds.data,
+                        borderColor: ds.color,
+                        backgroundColor: ds.color + '33',
+                        fill: true,
+                        tension: 0.4,
+                        borderWidth: 2,
+                        pointRadius: 0
+                    }))
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: { display: false },
+                        x: { 
+                            grid: { display: false },
+                            ticks: { color: 'rgba(255,255,255,0.3)', font: { size: 10 } }
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateGuessList() {
+            const list = document.getElementById('guessLogList');
+            if (allGuesses.length === 0) return;
+            
+            list.innerHTML = allGuesses.map(g => `
+                <div class="p-5 rounded-2xl bg-black/20 border border-white/5">
+                    <p class="text-lg font-black">${g.text}</p>
+                    <p class="text-[10px] font-bold text-white/30 uppercase">Timestamp: ${g.time}s</p>
+                </div>
+            `).join('');
+        }
+
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const url = URL.createObjectURL(file);
+                video.src = url;
+                document.getElementById('previewVideo').src = url;
+                document.getElementById('fileNameDisplay').innerText = file.name;
+                rawLogs = [];
+                allGuesses = [];
+                // Reset guess UI
+                document.getElementById('guessContainer').innerHTML = `
+                    <div class="space-y-3">
+                        <input type="text" id="advertiserInput" placeholder="Skriv varumärke..." class="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-4 text-sm text-white focus:outline-none focus:border-[#D4AF37] transition-all">
+                        <button onclick="submitGuess()" class="w-full py-4 rounded-xl font-black uppercase text-[10px] tracking-widest bg-[#D4AF37] hover:bg-[#b8962d] transition-all text-[#001F33]">Skicka Svar</button>
+                    </div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>
